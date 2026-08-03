@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -8,20 +9,15 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { ArrowUpRight, TrendingUp } from "lucide-react";
+import { ArrowUpRight, TrendingUp, Loader2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { AppShell } from "@/components/AppShell";
 import { StatCard } from "@/components/StatCard";
 import { CompanyLogo, statusBadgeClass } from "@/components/CompanyLogo";
-import {
-  activity,
-  applications,
-  interviews,
-  monthlyTrend,
-  stats,
-  statusLabels,
-} from "@/lib/mock-data";
+import { statusLabels, type AppStatus } from "@/lib/api";
+import { useApplications } from "@/hooks/useApplications";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -37,176 +33,279 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
+// ── Helpers ───────────────────────────────────────────────────
+/** Group ISO dates by "Mon YYYY" for the monthly trend chart */
+function buildMonthlyTrend(apps: { appliedDate: string; status: string }[]) {
+  const buckets: Record<string, { month: string; applications: number; interviews: number }> = {};
+
+  for (const app of apps) {
+    const d = new Date(app.appliedDate);
+    if (isNaN(d.getTime())) continue;
+    const key = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    const label = d.toLocaleDateString("en-US", { month: "short" });
+    if (!buckets[key]) buckets[key] = { month: label, applications: 0, interviews: 0 };
+    buckets[key].applications += 1;
+    if (app.status === "interview" || app.status === "offer") {
+      buckets[key].interviews += 1;
+    }
+  }
+
+  // Return sorted by date ascending, up to last 7 months
+  return Object.entries(buckets)
+    .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+    .slice(-7)
+    .map(([, v]) => v);
+}
+
+/** Derive a recent-activity feed from real applications */
+function buildActivity(apps: { id: string; company: string; role: string; status: string; appliedDate: string }[]) {
+  return [...apps]
+    .sort((a, b) => new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime())
+    .slice(0, 6)
+    .map((a) => {
+      const type = a.status as "applied" | "interview" | "offer" | "rejected" | "archived";
+      const messages: Record<string, string> = {
+        applied: `Applied to ${a.role} at ${a.company}`,
+        interview: `Interview scheduled for ${a.role} at ${a.company}`,
+        offer: `Offer received from ${a.company} for ${a.role}`,
+        rejected: `${a.company} ${a.role} marked Rejected`,
+        archived: `${a.company} ${a.role} archived`,
+      };
+      const d = new Date(a.appliedDate);
+      const now = new Date();
+      const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+      const time =
+        diffDays === 0 ? "Today" :
+        diffDays === 1 ? "1d ago" :
+        `${diffDays}d ago`;
+
+      return { id: a.id, type, message: messages[type] ?? `Updated ${a.company}`, time };
+    });
+}
+
+// ─────────────────────────────────────────────────────────────
 function Dashboard() {
-  const pipelineGroups = (["applied", "interview", "offer", "rejected"] as const).map((s) => ({
-    status: s,
-    items: applications.filter((a) => a.status === s),
-  }));
+  const { firstName, isLoading: userLoading } = useCurrentUser();
+  const { apps, total, isLoading: appsLoading } = useApplications();
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  }, []);
+
+  const displayName = userLoading ? "…" : (firstName || "there");
+
+  // ── Derived stats from real data ──────────────────────────
+  const stats = useMemo(() => {
+    const interviews = apps.filter((a) => a.status === "interview").length;
+    const offers     = apps.filter((a) => a.status === "offer").length;
+    const rejected   = apps.filter((a) => a.status === "rejected").length;
+    const active     = apps.filter((a) => a.status === "applied" || a.status === "interview").length;
+    const successRate = total > 0 ? +((offers / total) * 100).toFixed(1) : 0;
+    return { total, active, interviews, offers, rejections: rejected, successRate };
+  }, [apps, total]);
+
+  // ── Pipeline preview (applied/interview/offer/rejected) ───
+  const pipelineGroups = useMemo(
+    () =>
+      (["applied", "interview", "offer", "rejected"] as const).map((s) => ({
+        status: s,
+        items: apps.filter((a) => a.status === s),
+      })),
+    [apps],
+  );
+
+  // ── Monthly trend chart (real dates) ─────────────────────
+  const monthlyTrend = useMemo(() => buildMonthlyTrend(apps), [apps]);
+
+  // ── Recent activity feed (derived from apps) ─────────────
+  const activity = useMemo(() => buildActivity(apps), [apps]);
+
+  const isLoading = userLoading || appsLoading;
 
   return (
     <AppShell
-      title="Good morning, Alex."
-      subtitle="You're in the top 5% of active applicants this week — keep the momentum going."
+      title={`${greeting}, ${displayName}.`}
+      subtitle="Your job search dashboard — stats, pipeline, and activity all from your live data."
     >
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
-        <StatCard label="Total Apps" value={stats.total} />
-        <StatCard label="Active" value={stats.active} trend="+2 new" />
-        <StatCard label="Interviews" value={stats.interviews} accent="primary" />
-        <StatCard label="Offers" value={stats.offers} accent="success" />
-        <StatCard label="Rejections" value={stats.rejections} />
-        <StatCard label="Success Rate" value={`${stats.successRate}%`} accent="success" />
-      </div>
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> Loading your data…
+        </div>
+      )}
 
-      {/* Trend + Upcoming */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-8">
-        <section className="lg:col-span-8 bg-card rounded-xl ring-1 ring-border p-5 sm:p-6">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="text-sm font-medium">Monthly Application Trend</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Last 7 months</p>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-primary">
-              <TrendingUp className="size-3.5" />
-              +28% vs prev
-            </div>
+      {!isLoading && (
+        <>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+            <StatCard label="Total Apps"   value={stats.total} />
+            <StatCard label="Active"       value={stats.active} />
+            <StatCard label="Interviews"   value={stats.interviews} accent="primary" />
+            <StatCard label="Offers"       value={stats.offers}     accent="success" />
+            <StatCard label="Rejections"   value={stats.rejections} />
+            <StatCard label="Success Rate" value={`${stats.successRate}%`} accent="success" />
           </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="grad-apps" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="var(--color-primary)" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="grad-int" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-chart-2)" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="var(--color-chart-2)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="var(--color-border)" vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="month" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--color-popover)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="applications"
-                  stroke="var(--color-primary)"
-                  strokeWidth={2}
-                  fill="url(#grad-apps)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="interviews"
-                  stroke="var(--color-chart-2)"
-                  strokeWidth={2}
-                  fill="url(#grad-int)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
 
-        <section className="lg:col-span-4 bg-card rounded-xl ring-1 ring-border p-5 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium">Upcoming</h3>
-            <Link to="/interviews" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
-              All <ArrowUpRight className="size-3" />
-            </Link>
-          </div>
-          <div className="space-y-4">
-            {interviews.slice(0, 4).map((i) => (
-              <div key={i.id} className="flex gap-3 min-w-0">
-                <CompanyLogo company={i.company} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{i.company}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {i.type} · {i.date} · {i.time}
-                  </p>
+          {/* Trend + Upcoming placeholder */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-8">
+            <section className="lg:col-span-8 bg-card rounded-xl ring-1 ring-border p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-sm font-medium">Monthly Application Trend</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Based on your actual applied dates</p>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-primary">
+                  <TrendingUp className="size-3.5" />
+                  Live data
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* Kanban Preview */}
-      <section className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.14em]">
-            Pipeline Preview
-          </h2>
-          <Link to="/kanban" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
-            View Full Kanban <ArrowUpRight className="size-3" />
-          </Link>
-        </div>
-        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-5 px-5 sm:mx-0 sm:px-0">
-          {pipelineGroups.map((col) => (
-            <div key={col.status} className="min-w-[280px] space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {statusLabels[col.status]} ({col.items.length})
-                </span>
-              </div>
-              {col.items.slice(0, 2).map((a) => (
-                <div
-                  key={a.id}
-                  className={`bg-card p-4 rounded-xl ring-1 ring-border hover:ring-white/20 transition-all cursor-pointer ${
-                    a.status === "interview" ? "border-l-2 border-primary" : ""
-                  } ${a.status === "rejected" ? "opacity-60" : ""}`}
-                >
-                  <div className="flex justify-between items-start mb-2 gap-2">
-                    <span className="text-xs text-muted-foreground truncate">{a.company}</span>
-                    {a.tag && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusBadgeClass(a.status)}`}>
-                        {a.tag === "hot" ? "Hot" : a.tag === "high" ? "High" : "New"}
-                      </span>
-                    )}
+              <div className="h-64">
+                {monthlyTrend.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
+                    Add applications to see your trend chart.
                   </div>
-                  <p className="text-sm font-medium">{a.role}</p>
-                  {a.salary && <p className="text-xs text-[oklch(0.85_0.17_162)] mt-2">{a.salary} Base</p>}
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={monthlyTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="grad-apps" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%"   stopColor="var(--color-primary)"   stopOpacity={0.5} />
+                          <stop offset="100%" stopColor="var(--color-primary)"   stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="grad-int" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%"   stopColor="var(--color-chart-2)"   stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="var(--color-chart-2)"   stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="var(--color-border)" vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="month" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                      <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--color-popover)",
+                          border: "1px solid var(--color-border)",
+                          borderRadius: 8,
+                          fontSize: 12,
+                        }}
+                      />
+                      <Area type="monotone" dataKey="applications" stroke="var(--color-primary)"   strokeWidth={2} fill="url(#grad-apps)" />
+                      <Area type="monotone" dataKey="interviews"   stroke="var(--color-chart-2)"   strokeWidth={2} fill="url(#grad-int)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </section>
+
+            {/* Upcoming interviews (real data) */}
+            <section className="lg:col-span-4 bg-card rounded-xl ring-1 ring-border p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium">In Interview Stage</h3>
+                <Link to="/kanban" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                  Board <ArrowUpRight className="size-3" />
+                </Link>
+              </div>
+              <div className="space-y-4">
+                {apps
+                  .filter((a) => a.status === "interview")
+                  .slice(0, 4)
+                  .map((a) => (
+                    <div key={a.id} className="flex gap-3 min-w-0">
+                      <CompanyLogo company={a.company} color={a.logoColor} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{a.company}</p>
+                        <p className="text-xs text-muted-foreground truncate">{a.role}</p>
+                      </div>
+                    </div>
+                  ))}
+                {apps.filter((a) => a.status === "interview").length === 0 && (
+                  <p className="text-xs text-muted-foreground">No active interviews yet.</p>
+                )}
+              </div>
+            </section>
+          </div>
+
+          {/* Pipeline Preview */}
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.14em]">
+                Pipeline Preview
+              </h2>
+              <Link to="/kanban" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                View Full Kanban <ArrowUpRight className="size-3" />
+              </Link>
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-5 px-5 sm:mx-0 sm:px-0">
+              {pipelineGroups.map((col) => (
+                <div key={col.status} className="min-w-[280px] space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {statusLabels[col.status as AppStatus]} ({col.items.length})
+                    </span>
+                  </div>
+                  {col.items.slice(0, 2).map((a) => (
+                    <div
+                      key={a.id}
+                      className={`bg-card p-4 rounded-xl ring-1 ring-border hover:ring-white/20 transition-all cursor-pointer ${
+                        a.status === "interview" ? "border-l-2 border-primary" : ""
+                      } ${a.status === "rejected" ? "opacity-60" : ""}`}
+                    >
+                      <div className="flex justify-between items-start mb-2 gap-2">
+                        <span className="text-xs text-muted-foreground truncate">{a.company}</span>
+                        {a.tag && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusBadgeClass(a.status as AppStatus)}`}>
+                            {a.tag}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium">{a.role}</p>
+                      {a.salary && <p className="text-xs text-[oklch(0.85_0.17_162)] mt-2">{a.salary} Base</p>}
+                    </div>
+                  ))}
+                  {col.items.length === 0 && (
+                    <div className="bg-card p-4 rounded-xl ring-1 ring-border border-dashed text-center text-xs text-muted-foreground">
+                      No applications
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-          ))}
-        </div>
-      </section>
+          </section>
 
-      {/* Recent Activity */}
-      <section>
-        <h2 className="text-sm font-medium mb-4">Recent Activity</h2>
-        <div className="bg-card rounded-xl ring-1 ring-border divide-y divide-border">
-          {activity.map((a) => (
-            <div key={a.id} className="p-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className={`size-2 rounded-full shrink-0 ${
-                    a.type === "moved"
-                      ? "bg-primary"
-                      : a.type === "offer"
-                      ? "bg-[oklch(0.78_0.17_162)]"
-                      : a.type === "rejected"
-                      ? "bg-[oklch(0.7_0.18_25)]"
-                      : "bg-muted-foreground/50"
-                  }`}
-                />
-                <p className="text-sm truncate">
-                  {a.message}
-                  {a.detail && <span className="text-muted-foreground"> · {a.detail}</span>}
-                </p>
-              </div>
-              <span className="text-xs text-muted-foreground shrink-0">{a.time}</span>
+          {/* Recent Activity */}
+          <section>
+            <h2 className="text-sm font-medium mb-4">Recent Activity</h2>
+            <div className="bg-card rounded-xl ring-1 ring-border divide-y divide-border">
+              {activity.length === 0 && (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  No activity yet — start adding applications!
+                </div>
+              )}
+              {activity.map((a) => (
+                <div key={a.id} className="p-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`size-2 rounded-full shrink-0 ${
+                        a.type === "interview"
+                          ? "bg-primary"
+                          : a.type === "offer"
+                          ? "bg-[oklch(0.78_0.17_162)]"
+                          : a.type === "rejected"
+                          ? "bg-[oklch(0.7_0.18_25)]"
+                          : "bg-muted-foreground/50"
+                      }`}
+                    />
+                    <p className="text-sm truncate">{a.message}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">{a.time}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
+          </section>
+        </>
+      )}
     </AppShell>
   );
 }

@@ -1,4 +1,7 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { LogOut } from "lucide-react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { logout } from "@/lib/api";
 import {
   LayoutDashboard,
   Briefcase,
@@ -34,6 +37,13 @@ const nav = [
 ] as const;
 
 export function AppSidebar() {
+  const { user, initials, isLoading } = useCurrentUser();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate({ to: "/login" });
+  }
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
@@ -87,20 +97,34 @@ export function AppSidebar() {
 
       <div className="p-3 border-t border-border space-y-1">
         <Link
-          to="/login"
+          to="/"
           className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
         >
           <Settings className="size-4" />
           Settings
         </Link>
+
+        {/* Logged-in user profile — populated from GET /api/auth/me */}
         <div className="flex items-center gap-3 px-2 py-2">
-          <div className="size-8 rounded-full bg-gradient-to-br from-primary to-chart-2 grid place-items-center text-xs font-semibold text-primary-foreground">
-            AC
+          <div className="size-8 rounded-full bg-gradient-to-br from-primary to-chart-2 grid place-items-center text-xs font-semibold text-primary-foreground shrink-0">
+            {isLoading ? "…" : (initials || "??")}
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-medium truncate">Alex Chen</span>
-            <span className="text-[11px] text-muted-foreground">Free Plan</span>
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-sm font-medium truncate">
+              {isLoading ? "Loading…" : (user?.fullName ?? "Unknown User")}
+            </span>
+            <span className="text-[11px] text-muted-foreground truncate">
+              {isLoading ? "" : (user?.email ?? "")}
+            </span>
           </div>
+          {/* Logout button */}
+          <button
+            onClick={handleLogout}
+            title="Log out"
+            className="shrink-0 size-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <LogOut className="size-3.5" />
+          </button>
         </div>
       </div>
     </aside>

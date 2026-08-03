@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
-import type { Application } from "@/lib/mock-data";
+
+type AppStatus = "applied" | "interview" | "offer" | "rejected" | "archived";
 
 interface CompanyLogoProps {
   company: string;
@@ -32,7 +33,7 @@ export function CompanyLogo({ company, color, size = "md", className }: CompanyL
   );
 }
 
-export function statusBadgeClass(status: Application["status"]) {
+export function statusBadgeClass(status: AppStatus) {
   switch (status) {
     case "applied":
       return "bg-accent text-muted-foreground";

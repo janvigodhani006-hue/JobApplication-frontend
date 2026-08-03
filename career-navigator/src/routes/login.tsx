@@ -13,12 +13,59 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+ const [mode, setMode] = useState<"signin" | "signup">("signin");
 
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+const [fullName, setFullName] = useState("");
+const [email, setEmail] = useState("");
+const [password, setPassword] = useState("");
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState("");
+ async function onSubmit(e: React.FormEvent) {
+  e.preventDefault();
+
+  setLoading(true);
+  setError("");
+
+  try {
+    const endpoint =
+  mode === "signin"
+    ? "http://localhost:9091/api/auth/login"
+    : "http://localhost:9091/api/auth/register";
+    const body =
+      mode === "signin"
+        ? {
+            email,
+            password,
+          }
+        : {
+            fullName,
+            email,
+            password,
+          };
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error("Invalid email or password");
+    }
+
+    const data = await response.json();
+
+    localStorage.setItem("auth_token", data.token);
+
     navigate({ to: "/" });
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
@@ -43,17 +90,39 @@ function LoginPage() {
 
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
             {mode === "signup" && (
-              <Field label="Full name" type="text" placeholder="Alex Chen" />
+              <Field
+  label="Full name"
+  type="text"
+  placeholder="Alex Chen"
+  value={fullName}
+  onChange={(e) => setFullName(e.target.value)}
+/>
             )}
-            <Field label="Email" type="email" placeholder="alex@university.edu" />
-            <Field label="Password" type="password" placeholder="••••••••" />
-
-            <button
-              type="submit"
-              className="w-full bg-primary text-primary-foreground font-medium text-sm py-2.5 rounded-md hover:brightness-110 transition-all shadow-[var(--shadow-glow)]"
-            >
-              {mode === "signin" ? "Sign in" : "Create account"}
-            </button>
+            <Field
+  label="Email"
+  type="email"
+  placeholder="alex@university.edu"
+  value={email}
+  onChange={(e) => setEmail(e.target.value)}
+/>
+            <Field
+  label="Password"
+  type="password"
+  placeholder="••••••••"
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+/>
+        <button
+  type="submit"
+  disabled={loading}
+  className="w-full bg-primary text-primary-foreground font-medium text-sm py-2.5 rounded-md hover:brightness-110 transition-all shadow-[var(--shadow-glow)] disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  {loading
+    ? "Please wait..."
+    : mode === "signin"
+    ? "Sign in"
+    : "Create account"}
+</button>
           </form>
 
           <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">

@@ -18,6 +18,8 @@ import { CompanyLogo, statusBadgeClass } from "@/components/CompanyLogo";
 import { statusLabels, type AppStatus } from "@/lib/api";
 import { useApplications } from "@/hooks/useApplications";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useInterviews } from "@/hooks/useInterviews";
+import { Video, Calendar } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -87,6 +89,7 @@ function buildActivity(apps: { id: string; company: string; role: string; status
 function Dashboard() {
   const { firstName, isLoading: userLoading } = useCurrentUser();
   const { apps, total, isLoading: appsLoading } = useApplications();
+  const { upcoming: upcomingInterviews, isLoading: interviewsLoading } = useInterviews();
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -123,7 +126,7 @@ function Dashboard() {
   // ── Recent activity feed (derived from apps) ─────────────
   const activity = useMemo(() => buildActivity(apps), [apps]);
 
-  const isLoading = userLoading || appsLoading;
+  const isLoading = userLoading || appsLoading || interviewsLoading;
 
   return (
     <AppShell
@@ -199,29 +202,40 @@ function Dashboard() {
               </div>
             </section>
 
-            {/* Upcoming interviews (real data) */}
+            {/* Upcoming scheduled interviews (real data from /api/interviews) */}
             <section className="lg:col-span-4 bg-card rounded-xl ring-1 ring-border p-5 sm:p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium">In Interview Stage</h3>
-                <Link to="/kanban" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
-                  Board <ArrowUpRight className="size-3" />
+                <h3 className="text-sm font-medium">Upcoming Interviews</h3>
+                <Link to="/interviews" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                  All <ArrowUpRight className="size-3" />
                 </Link>
               </div>
               <div className="space-y-4">
-                {apps
-                  .filter((a) => a.status === "interview")
-                  .slice(0, 4)
-                  .map((a) => (
-                    <div key={a.id} className="flex gap-3 min-w-0">
-                      <CompanyLogo company={a.company} color={a.logoColor} size="sm" />
+                {upcomingInterviews.slice(0, 4).map((i) => {
+                  const d = new Date(i.interviewDate);
+                  const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  const timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <div key={i.id} className="flex gap-3 min-w-0">
+                      <CompanyLogo company={i.company} size="sm" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{a.company}</p>
-                        <p className="text-xs text-muted-foreground truncate">{a.role}</p>
+                        <p className="text-sm font-medium truncate">{i.company}</p>
+                        <p className="text-xs text-muted-foreground truncate">{i.role}</p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
+                            <Calendar className="size-2.5" />{dateStr}
+                          </span>
+                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
+                            <Video className="size-2.5" />{i.platform}
+                          </span>
+                        </div>
                       </div>
+                      <span className="text-[10px] text-muted-foreground shrink-0 self-start pt-1">{timeStr}</span>
                     </div>
-                  ))}
-                {apps.filter((a) => a.status === "interview").length === 0 && (
-                  <p className="text-xs text-muted-foreground">No active interviews yet.</p>
+                  );
+                })}
+                {upcomingInterviews.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No upcoming interviews. <Link to="/interviews" className="text-primary hover:underline">Schedule one →</Link></p>
                 )}
               </div>
             </section>

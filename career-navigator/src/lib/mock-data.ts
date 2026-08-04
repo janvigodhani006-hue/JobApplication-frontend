@@ -13,15 +13,9 @@ export interface Application {
   logoColor: string;
 }
 
-export interface Interview {
-  id: string;
-  company: string;
-  role: string;
-  type: string;
-  date: string;
-  time: string;
-  platform: string;
-}
+// Interview interface moved to src/lib/interview-api.ts (InterviewResponse)
+// interviews mock data removed — now fetched from GET /api/interviews
+
 
 export interface Offer {
   id: string;
@@ -76,12 +70,7 @@ export const applications: Application[] = [
   { id: "a12", company: "Uber", role: "Software Engineer", status: "archived", location: "San Francisco, CA", appliedDate: "2 months ago", source: "LinkedIn", logoColor: "#ededed" },
 ];
 
-export const interviews: Interview[] = [
-  { id: "i1", company: "Stripe", role: "Software Engineer", type: "Technical Screen", date: "Tomorrow", time: "2:30 PM", platform: "Google Meet" },
-  { id: "i2", company: "Google", role: "SWE Intern", type: "Final Round", date: "Oct 24", time: "10:00 AM", platform: "Zoom" },
-  { id: "i3", company: "Discord", role: "Backend Intern", type: "Behavioral", date: "Oct 26", time: "3:00 PM", platform: "Zoom" },
-  { id: "i4", company: "Notion", role: "SWE Intern", type: "System Design", date: "Oct 29", time: "11:00 AM", platform: "Google Meet" },
-];
+// interviews mock removed — use useInterviews() hook from src/hooks/useInterviews.ts
 
 export const offers: Offer[] = [
   { id: "o1", company: "Linear", role: "Frontend Engineer", base: 165000, equity: "0.08%", bonus: 15000, location: "Remote", deadline: "Nov 12", match: 94 },

@@ -30,7 +30,7 @@ function authHeader(): Record<string, string> {
  * - Throws on non-2xx responses.
  * - Redirects to /login on 401 Unauthorized.
  */
-async function apiFetch<T>(
+export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {

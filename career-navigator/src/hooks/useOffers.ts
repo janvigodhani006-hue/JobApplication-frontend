@@ -137,7 +137,8 @@ export function useUpdateOfferStatus() {
     },
 
     // Roll back on server error
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
+      console.error("[useUpdateOfferStatus] PATCH failed:", err.message);
       if (context?.previous) {
         queryClient.setQueryData(OFFERS_QUERY_KEY, context.previous);
       }
@@ -156,5 +157,6 @@ export function useUpdateOfferStatus() {
   return {
     setStatus: mutation.mutateAsync,
     isSettingStatus: mutation.isPending,
+    statusError: mutation.error as Error | null,
   };
 }

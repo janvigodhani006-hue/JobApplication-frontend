@@ -100,10 +100,10 @@ function LogOfferModal({ onClose }: LogOfferModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-8 overflow-y-auto"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-card ring-1 ring-border rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-card ring-1 ring-border rounded-2xl w-full max-w-lg shadow-2xl relative my-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card z-10">
           <h2 className="text-sm font-semibold">Log Job Offer</h2>
@@ -318,7 +318,16 @@ const TABLE_ROWS = [
 function OffersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const { offers, bestOffer, isLoading, isError, error } = useOffers();
-  const { setStatus, isSettingStatus } = useUpdateOfferStatus();
+  const { setStatus, isSettingStatus, statusError } = useUpdateOfferStatus();
+
+  // Wrapper that swallows the thrown error — error is visible via statusError
+  async function handleSetStatus(id: string, status: OfferStatus) {
+    try {
+      await setStatus({ id, status });
+    } catch {
+      // error already captured in statusError and logged to console
+    }
+  }
 
   return (
     <AppShell
@@ -345,11 +354,19 @@ function OffersPage() {
         </div>
       )}
 
-      {/* Error */}
+      {/* Error loading offers */}
       {isError && (
         <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 rounded-xl px-4 py-3 mb-6">
           <AlertCircle className="size-4 shrink-0" />
           {error?.message ?? "Failed to load offers."}
+        </div>
+      )}
+
+      {/* Error updating offer status */}
+      {statusError && (
+        <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 rounded-xl px-4 py-3 mb-6">
+          <AlertCircle className="size-4 shrink-0" />
+          <span><strong>Could not update offer status:</strong> {statusError.message}</span>
         </div>
       )}
 
@@ -438,7 +455,7 @@ function OffersPage() {
                     <div className="flex gap-2">
                       <button
                         id={`accept-offer-${o.id}`}
-                        onClick={() => setStatus({ id: o.id, status: "accepted" })}
+                        onClick={() => handleSetStatus(o.id, "accepted")}
                         disabled={isSettingStatus}
                         className="flex-1 text-xs font-medium py-2 rounded-md bg-primary text-primary-foreground hover:brightness-110 transition-all inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
                       >
@@ -446,7 +463,7 @@ function OffersPage() {
                       </button>
                       <button
                         id={`negotiate-offer-${o.id}`}
-                        onClick={() => setStatus({ id: o.id, status: "negotiating" })}
+                        onClick={() => handleSetStatus(o.id, "negotiating")}
                         disabled={isSettingStatus}
                         className="flex-1 text-xs font-medium py-2 rounded-md border border-border hover:bg-accent transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
                       >
@@ -454,7 +471,7 @@ function OffersPage() {
                       </button>
                       <button
                         id={`decline-offer-${o.id}`}
-                        onClick={() => setStatus({ id: o.id, status: "rejected" })}
+                        onClick={() => handleSetStatus(o.id, "rejected")}
                         disabled={isSettingStatus}
                         className="p-2 rounded-md border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/30 hover:bg-red-500/5 transition-colors disabled:opacity-50"
                         title="Decline offer"

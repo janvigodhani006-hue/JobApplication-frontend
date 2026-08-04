@@ -21,6 +21,7 @@ import {
   useMarkInterviewComplete,
   useDeleteInterview,
 } from "@/hooks/useInterviews";
+import { useApplications } from "@/hooks/useApplications";
 import type { InterviewPayload, InterviewType, InterviewPlatform } from "@/lib/interview-api";
 
 // ── Constants ────────────────────────────────────────────────
@@ -89,8 +90,11 @@ function ScheduleModal({ onClose }: ScheduleModalProps) {
   const { schedule, isScheduling, scheduleError } = useCreateInterview({
     onSuccess: () => onClose(),
   });
+  // Load user's applications for the "Link to Application" dropdown
+  const { apps } = useApplications();
 
   const [form, setForm] = useState<InterviewPayload>({
+    applicationId: undefined,
     company: "",
     role: "",
     type: "Technical Screen",
@@ -100,6 +104,9 @@ function ScheduleModal({ onClose }: ScheduleModalProps) {
   });
 
   const [validationError, setValidationError] = useState<string | null>(null);
+  // Separate date and time state for easier UX — combined on submit
+  const [dateVal, setDateVal] = useState("");
+  const [timeVal, setTimeVal] = useState("09:00");
 
   function set<K extends keyof InterviewPayload>(key: K, value: InterviewPayload[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -108,13 +115,25 @@ function ScheduleModal({ onClose }: ScheduleModalProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.company || !form.role || !form.interviewDate) {
-      setValidationError("Company, role, and date are required.");
+    if (!form.company.trim()) {
+      setValidationError("Company name is required.");
+      return;
+    }
+    if (!form.role.trim()) {
+      setValidationError("Role is required.");
+      return;
+    }
+    if (!dateVal) {
+      setValidationError("Please pick an interview date.");
+      return;
+    }
+    if (!timeVal) {
+      setValidationError("Please pick an interview time.");
       return;
     }
     try {
-      // Convert local datetime to ISO-8601 UTC
-      const isoDate = new Date(form.interviewDate).toISOString();
+      // Combine local date + time → ISO-8601 UTC
+      const isoDate = new Date(`${dateVal}T${timeVal}:00`).toISOString();
       await schedule({ ...form, interviewDate: isoDate });
     } catch {
       // error surfaced via scheduleError
@@ -147,6 +166,45 @@ function ScheduleModal({ onClose }: ScheduleModalProps) {
               {validationError ?? scheduleError?.message}
             </div>
           )}
+
+          {/* Link to Application (optional but fills applicationId) */}
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">
+              Link to Application
+              <span className="text-muted-foreground/50 ml-1">(optional — auto-fills company & role)</span>
+            </label>
+            <select
+              id="interview-application-id"
+              value={form.applicationId ?? ""}
+              onChange={(e) => {
+                const selectedId = e.target.value;
+                if (!selectedId) {
+                  // Cleared — reset applicationId only, keep manual fields
+                  setForm((prev) => ({ ...prev, applicationId: undefined }));
+                  return;
+                }
+                const app = apps.find((a) => a.id === selectedId);
+                if (app) {
+                  // Auto-fill company and role from the selected application
+                  setForm((prev) => ({
+                    ...prev,
+                    applicationId: selectedId,
+                    company: app.company,
+                    role: app.role,
+                  }));
+                }
+                setValidationError(null);
+              }}
+              className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+            >
+              <option value="">— Not linked to an application —</option>
+              {apps.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.company} · {a.role}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Company + Role */}
           <div className="grid grid-cols-2 gap-3">
@@ -218,19 +276,39 @@ function ScheduleModal({ onClose }: ScheduleModalProps) {
             </div>
           </div>
 
-          {/* Date / Time */}
-          <div>
-            <label className="text-xs text-muted-foreground mb-1.5 block">
-              Date & Time <span className="text-red-400">*</span>
-            </label>
-            <input
-              id="interview-date"
-              type="datetime-local"
-              value={form.interviewDate}
-              onChange={(e) => set("interviewDate", e.target.value)}
-              className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-              required
-            />
+          {/* Date + Time — split into two fields to avoid browser validation issues */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">
+                Date <span className="text-red-400">*</span>
+              </label>
+              <input
+                id="interview-date"
+                type="date"
+                value={dateVal}
+                min={new Date().toISOString().split("T")[0]}
+                onChange={(e) => {
+                  setDateVal(e.target.value);
+                  setValidationError(null);
+                }}
+                className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">
+                Time <span className="text-red-400">*</span>
+              </label>
+              <input
+                id="interview-time"
+                type="time"
+                value={timeVal}
+                onChange={(e) => {
+                  setTimeVal(e.target.value);
+                  setValidationError(null);
+                }}
+                className="w-full text-sm bg-background border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+              />
+            </div>
           </div>
 
           {/* Prep Notes */}

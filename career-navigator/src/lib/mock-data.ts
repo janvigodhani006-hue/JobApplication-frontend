@@ -17,17 +17,9 @@ export interface Application {
 // interviews mock data removed — now fetched from GET /api/interviews
 
 
-export interface Offer {
-  id: string;
-  company: string;
-  role: string;
-  base: number;
-  equity: string;
-  bonus: number;
-  location: string;
-  deadline: string;
-  match: number;
-}
+// Offer interface moved to src/lib/offer-api.ts (OfferResponse)
+// offers mock data removed — now fetched from GET /api/offers
+
 
 export interface Resume {
   id: string;
@@ -72,10 +64,7 @@ export const applications: Application[] = [
 
 // interviews mock removed — use useInterviews() hook from src/hooks/useInterviews.ts
 
-export const offers: Offer[] = [
-  { id: "o1", company: "Linear", role: "Frontend Engineer", base: 165000, equity: "0.08%", bonus: 15000, location: "Remote", deadline: "Nov 12", match: 94 },
-  { id: "o2", company: "Cursor", role: "Founding Engineer", base: 180000, equity: "0.25%", bonus: 0, location: "San Francisco, CA", deadline: "Nov 18", match: 88 },
-];
+// offers mock removed — use useOffers() hook from src/hooks/useOffers.ts
 
 export const resumes: Resume[] = [
   { id: "r1", name: "Software_General_v4.pdf", version: "v4", updated: "2 days ago", applications: 24, size: "184 KB" },

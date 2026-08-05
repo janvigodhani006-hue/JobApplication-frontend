@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { Bell, Plus } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useNotifications } from "@/hooks/useNotifications";
 
 interface AppShellProps {
   title: string;
@@ -11,6 +12,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ title, subtitle, action, children }: AppShellProps) {
+  const { unreadCount } = useNotifications();
   return (
     <div className="min-h-screen flex bg-background text-foreground">
       <AppSidebar />
@@ -31,10 +33,12 @@ export function AppShell({ title, subtitle, action, children }: AppShellProps) {
               <Link
                 to="/notifications"
                 className="size-9 grid place-items-center rounded-md border border-border bg-card hover:bg-accent transition-colors relative"
-                aria-label="Notifications"
+                aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
               >
                 <Bell className="size-4" />
-                <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary" />
+                )}
               </Link>
               {action ?? (
                 <Link

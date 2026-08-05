@@ -20,6 +20,7 @@ import { useApplications } from "@/hooks/useApplications";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useInterviews } from "@/hooks/useInterviews";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { useActivities } from "@/hooks/useActivities";
 import { Video, Calendar } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -36,42 +37,31 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
-// ── Helpers ───────────────────────────────────────────────────
-
-/** Derive a recent-activity feed from real applications */
-function buildActivity(apps: { id: string; company: string; role: string; status: string; appliedDate: string }[]) {
-  return [...apps]
-    .sort((a, b) => new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime())
-    .slice(0, 6)
-    .map((a) => {
-      const type = a.status as "applied" | "interview" | "offer" | "rejected" | "archived";
-      const messages: Record<string, string> = {
-        applied: `Applied to ${a.role} at ${a.company}`,
-        interview: `Interview scheduled for ${a.role} at ${a.company}`,
-        offer: `Offer received from ${a.company} for ${a.role}`,
-        rejected: `${a.company} ${a.role} marked Rejected`,
-        archived: `${a.company} ${a.role} archived`,
-      };
-      const d = new Date(a.appliedDate);
-      const now = new Date();
-      const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-      const time =
-        diffDays === 0 ? "Today" :
-        diffDays === 1 ? "1d ago" :
-        `${diffDays}d ago`;
-
-      return { id: a.id, type, message: messages[type] ?? `Updated ${a.company}`, time };
-    });
+// ─────────────────────────────────────────────────────────────
+/** Format an ISO timestamp as a short relative time label */
+function formatRelativeTime(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffMins < 60) return diffMins <= 1 ? "Just now" : `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "1d ago";
+  return `${diffDays}d ago`;
 }
 
 // ─────────────────────────────────────────────────────────────
 function Dashboard() {
   const { firstName, isLoading: userLoading } = useCurrentUser();
-  // useApplications is still needed for Pipeline Preview + Recent Activity
+  // useApplications is still needed for Pipeline Preview
   const { apps, isLoading: appsLoading } = useApplications();
   const { upcoming: upcomingInterviews, isLoading: interviewsLoading } = useInterviews();
   // Pre-aggregated stats from the dedicated dashboard endpoint
   const { stats, isLoading: statsLoading } = useDashboardStats();
+  // Real activity feed from /api/activities
+  const { activities, isLoading: activitiesLoading } = useActivities();
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -102,9 +92,9 @@ function Dashboard() {
   );
 
   // ── Recent activity feed (derived from apps) ─────────────
-  const activity = useMemo(() => buildActivity(apps), [apps]);
+  // Removed: was buildActivity(apps) — now comes from useActivities()
 
-  const isLoading = userLoading || appsLoading || interviewsLoading || statsLoading;
+  const isLoading = userLoading || appsLoading || interviewsLoading || statsLoading || activitiesLoading;
 
   return (
     <AppShell
@@ -266,16 +256,16 @@ function Dashboard() {
             </div>
           </section>
 
-          {/* Recent Activity */}
+          {/* Recent Activity — live from /api/activities */}
           <section>
             <h2 className="text-sm font-medium mb-4">Recent Activity</h2>
             <div className="bg-card rounded-xl ring-1 ring-border divide-y divide-border">
-              {activity.length === 0 && (
+              {activities.length === 0 && (
                 <div className="p-6 text-center text-xs text-muted-foreground">
                   No activity yet — start adding applications!
                 </div>
               )}
-              {activity.map((a) => (
+              {activities.map((a) => (
                 <div key={a.id} className="p-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div
@@ -289,9 +279,16 @@ function Dashboard() {
                           : "bg-muted-foreground/50"
                       }`}
                     />
-                    <p className="text-sm truncate">{a.message}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm truncate">{a.message}</p>
+                      {a.detail && (
+                        <p className="text-xs text-muted-foreground truncate">{a.detail}</p>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-xs text-muted-foreground shrink-0">{a.time}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {formatRelativeTime(a.createdAt)}
+                  </span>
                 </div>
               ))}
             </div>

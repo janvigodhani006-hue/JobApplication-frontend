@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   FileText,
   Download,
@@ -75,6 +75,17 @@ function UploadDialog({ open, onClose }: UploadDialogProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset all state every time the dialog is opened so stale
+  // errors and files from a previous session don't bleed through.
+  useEffect(() => {
+    if (open) {
+      setFile(null);
+      setVersion("");
+      setIsDragging(false);
+      setFileError(null);
+    }
+  }, [open]);
 
   const { upload, isUploading, uploadError } = useUploadResume({
     onSuccess: () => {

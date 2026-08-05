@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { useMemo, useState, useEffect } from "react";
 import {
   Search,
   Filter,
@@ -32,6 +32,11 @@ import {
 import type { ApplicationPayload, ApplicationResponse } from "@/lib/api";
 
 export const Route = createFileRoute("/applications")({
+  // Declare the `new` search param — used by the Dashboard's
+  // "New Application" button to auto-open the create modal.
+  validateSearch: (search: Record<string, unknown>) => ({
+    new: search.new === "true" ? "true" : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Applications · CareerPilot" },
@@ -108,6 +113,15 @@ function ApplicationsPage() {
   const [drawerAppId, setDrawerAppId] = useState<string | null>(null);
   const [editingApp, setEditingApp] = useState<ApplicationResponse | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Auto-open create modal when navigated with ?new=true
+  // (e.g. from the Dashboard "New Application" button)
+  const search = useSearch({ from: "/applications" });
+  useEffect(() => {
+    if (search.new === "true") {
+      setShowCreateModal(true);
+    }
+  }, [search.new]);
 
   // ── Data from backend ──────────────────────────────────────
   const { apps, isLoading, isError } = useApplications();

@@ -37,10 +37,14 @@ export function AppShell({ title, subtitle, action, children }: AppShellProps) {
                 <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary" />
               </Link>
               {action ?? (
-                <button className="bg-primary text-primary-foreground text-sm font-medium px-3.5 py-2 rounded-md inline-flex items-center gap-1.5 hover:brightness-110 transition-all shadow-[var(--shadow-glow)]">
+                <Link
+                  to="/applications"
+                  search={{ new: "true" }}
+                  className="bg-primary text-primary-foreground text-sm font-medium px-3.5 py-2 rounded-md inline-flex items-center gap-1.5 hover:brightness-110 transition-all shadow-[var(--shadow-glow)]"
+                >
                   <Plus className="size-4" />
                   New Application
-                </button>
+                </Link>
               )}
             </div>
           </header>

@@ -21,14 +21,8 @@ export interface Application {
 // offers mock data removed — now fetched from GET /api/offers
 
 
-export interface Resume {
-  id: string;
-  name: string;
-  version: string;
-  updated: string;
-  applications: number;
-  size: string;
-}
+// Resume interface moved to src/lib/resume-api.ts (ResumeResponse)
+// resumes mock data removed — now fetched from GET /api/resumes
 
 export interface Activity {
   id: string;
@@ -65,12 +59,6 @@ export const applications: Application[] = [
 // interviews mock removed — use useInterviews() hook from src/hooks/useInterviews.ts
 
 // offers mock removed — use useOffers() hook from src/hooks/useOffers.ts
-
-export const resumes: Resume[] = [
-  { id: "r1", name: "Software_General_v4.pdf", version: "v4", updated: "2 days ago", applications: 24, size: "184 KB" },
-  { id: "r2", name: "Frontend_Focused_v2.pdf", version: "v2", updated: "1 week ago", applications: 9, size: "172 KB" },
-  { id: "r3", name: "ML_Research_v1.pdf", version: "v1", updated: "3 weeks ago", applications: 4, size: "201 KB" },
-];
 
 export const activity: Activity[] = [
   { id: "ac1", type: "moved", message: "Application moved to Interview for Stripe", time: "2h ago" },

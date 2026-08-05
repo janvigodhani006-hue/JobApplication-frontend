@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -18,7 +17,7 @@ import { TrendingUp, Target, Zap, Award, Loader2 } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
 import { StatCard } from "@/components/StatCard";
-import { useApplications } from "@/hooks/useApplications";
+import { useDashboardStats } from "@/hooks/useDashboardStats";
 import type { AppStatus } from "@/lib/api";
 
 export const Route = createFileRoute("/analytics")({
@@ -49,61 +48,33 @@ const STATUS_LABELS: Record<AppStatus, string> = {
 };
 
 function AnalyticsPage() {
-  const { apps, total, isLoading } = useApplications();
+  const { stats, isLoading } = useDashboardStats();
 
-  // ── Derived data ─────────────────────────────────────────
+  // ── Map monthlyTrends: rename `count` → `applications` for Recharts dataKey
+  const monthlyTrend = stats.monthlyTrends.map((t) => ({
+    month: t.month,
+    applications: t.count,
+    interviews: t.interviews,
+  }));
 
-  /** Monthly trend: group by applied month */
-  const monthlyTrend = useMemo(() => {
-    const buckets: Record<string, { month: string; applications: number; interviews: number }> = {};
-    for (const app of apps) {
-      const d = new Date(app.appliedDate);
-      if (isNaN(d.getTime())) continue;
-      const key   = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-      const label = d.toLocaleDateString("en-US", { month: "short" });
-      if (!buckets[key]) buckets[key] = { month: label, applications: 0, interviews: 0 };
-      buckets[key].applications += 1;
-      if (app.status === "interview" || app.status === "offer") buckets[key].interviews += 1;
-    }
-    return Object.entries(buckets)
-      .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
-      .slice(-7)
-      .map(([, v]) => v);
-  }, [apps]);
+  // ── Map statusBreakdowns: add display label + color for pie chart
+  const statusBreakdown = stats.statusBreakdowns.map((s) => ({
+    name: STATUS_LABELS[s.status as AppStatus] ?? s.status,
+    value: s.count,
+    color: STATUS_COLORS[s.status as AppStatus] ?? "var(--color-muted-foreground)",
+  }));
 
-  /** Status breakdown for pie chart */
-  const statusBreakdown = useMemo(() => {
-    const counts: Partial<Record<AppStatus, number>> = {};
-    for (const app of apps) {
-      const s = app.status as AppStatus;
-      counts[s] = (counts[s] ?? 0) + 1;
-    }
-    return (Object.keys(STATUS_LABELS) as AppStatus[])
-      .filter((s) => (counts[s] ?? 0) > 0)
-      .map((s) => ({ name: STATUS_LABELS[s], value: counts[s]!, color: STATUS_COLORS[s] }));
-  }, [apps]);
+  // ── sourceBreakdowns maps directly — { source, count } shape matches chart
+  const sourceBreakdown = stats.sourceBreakdowns;
 
-  /** Source breakdown bar chart */
-  const sourceBreakdown = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const app of apps) {
-      if (app.source) counts[app.source] = (counts[app.source] ?? 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 6)
-      .map(([source, count]) => ({ source, count }));
-  }, [apps]);
-
-  /** Top-level KPIs */
-  const kpis = useMemo(() => {
-    const interviews = apps.filter((a) => a.status === "interview" || a.status === "offer").length;
-    const offers     = apps.filter((a) => a.status === "offer").length;
-    const responseRate = total > 0 ? +((interviews / total) * 100).toFixed(1) : 0;
-    const offerRate    = interviews > 0 ? +((offers / interviews) * 100).toFixed(1) : 0;
-    const bestSource   = sourceBreakdown[0]?.source ?? "—";
-    return { responseRate, offerRate, bestSource };
-  }, [apps, total, sourceBreakdown]);
+  // ── KPIs derived from pre-aggregated fields
+  const total       = stats.totalApps;
+  const interviews  = stats.interviewsCount;
+  const offers      = stats.offersCount;
+  const responseRate = total > 0 ? +((interviews / total) * 100).toFixed(1) : 0;
+  const offerRate    = interviews > 0 ? +((offers / interviews) * 100).toFixed(1) : 0;
+  const bestSource   = sourceBreakdown[0]?.source ?? "—";
+  const kpis = { responseRate, offerRate, bestSource };
 
   if (isLoading) {
     return (
@@ -115,7 +86,7 @@ function AnalyticsPage() {
     );
   }
 
-  const hasData = apps.length > 0;
+  const hasData = total > 0;
 
   return (
     <AppShell title="Analytics" subtitle="Patterns, conversion rates, and career insights from your job search.">
@@ -285,7 +256,7 @@ function AnalyticsPage() {
               <Insight
                 icon={<TrendingUp className="size-4 text-primary" />}
                 title="Keep the momentum"
-                body={`You have ${apps.filter((a) => a.status === "interview").length} active interviews. Follow up promptly to stay top of mind.`}
+                body={`You have ${stats.interviewsCount} active interviews. Follow up promptly to stay top of mind.`}
               />
             </div>
           </section>

@@ -19,6 +19,7 @@ import { statusLabels, type AppStatus } from "@/lib/api";
 import { useApplications } from "@/hooks/useApplications";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useInterviews } from "@/hooks/useInterviews";
+import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { Video, Calendar } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -36,28 +37,6 @@ export const Route = createFileRoute("/")({
 });
 
 // ── Helpers ───────────────────────────────────────────────────
-/** Group ISO dates by "Mon YYYY" for the monthly trend chart */
-function buildMonthlyTrend(apps: { appliedDate: string; status: string }[]) {
-  const buckets: Record<string, { month: string; applications: number; interviews: number }> = {};
-
-  for (const app of apps) {
-    const d = new Date(app.appliedDate);
-    if (isNaN(d.getTime())) continue;
-    const key = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-    const label = d.toLocaleDateString("en-US", { month: "short" });
-    if (!buckets[key]) buckets[key] = { month: label, applications: 0, interviews: 0 };
-    buckets[key].applications += 1;
-    if (app.status === "interview" || app.status === "offer") {
-      buckets[key].interviews += 1;
-    }
-  }
-
-  // Return sorted by date ascending, up to last 7 months
-  return Object.entries(buckets)
-    .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
-    .slice(-7)
-    .map(([, v]) => v);
-}
 
 /** Derive a recent-activity feed from real applications */
 function buildActivity(apps: { id: string; company: string; role: string; status: string; appliedDate: string }[]) {
@@ -88,8 +67,11 @@ function buildActivity(apps: { id: string; company: string; role: string; status
 // ─────────────────────────────────────────────────────────────
 function Dashboard() {
   const { firstName, isLoading: userLoading } = useCurrentUser();
-  const { apps, total, isLoading: appsLoading } = useApplications();
+  // useApplications is still needed for Pipeline Preview + Recent Activity
+  const { apps, isLoading: appsLoading } = useApplications();
   const { upcoming: upcomingInterviews, isLoading: interviewsLoading } = useInterviews();
+  // Pre-aggregated stats from the dedicated dashboard endpoint
+  const { stats, isLoading: statsLoading } = useDashboardStats();
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -100,17 +82,8 @@ function Dashboard() {
 
   const displayName = userLoading ? "…" : (firstName || "there");
 
-  // ── Derived stats from real data ──────────────────────────
-  const stats = useMemo(() => {
-    const interviews = apps.filter((a) => a.status === "interview").length;
-    const offers     = apps.filter((a) => a.status === "offer").length;
-    const rejected   = apps.filter((a) => a.status === "rejected").length;
-    const active     = apps.filter((a) => a.status === "applied" || a.status === "interview").length;
-    const successRate = total > 0 ? +((offers / total) * 100).toFixed(1) : 0;
-    return { total, active, interviews, offers, rejections: rejected, successRate };
-  }, [apps, total]);
-
   // ── Pipeline preview (applied/interview/offer/rejected) ───
+  // Still derived from the full app list (needs per-app data)
   const pipelineGroups = useMemo(
     () =>
       (["applied", "interview", "offer", "rejected"] as const).map((s) => ({
@@ -120,13 +93,18 @@ function Dashboard() {
     [apps],
   );
 
-  // ── Monthly trend chart (real dates) ─────────────────────
-  const monthlyTrend = useMemo(() => buildMonthlyTrend(apps), [apps]);
+  // ── Monthly trend chart — from /api/dashboard/stats ──────
+  // Backend returns { month, count, interviews };
+  // rename `count` → `applications` for the Recharts dataKey
+  const monthlyTrend = useMemo(
+    () => stats.monthlyTrends.map((t) => ({ month: t.month, applications: t.count, interviews: t.interviews })),
+    [stats.monthlyTrends],
+  );
 
   // ── Recent activity feed (derived from apps) ─────────────
   const activity = useMemo(() => buildActivity(apps), [apps]);
 
-  const isLoading = userLoading || appsLoading || interviewsLoading;
+  const isLoading = userLoading || appsLoading || interviewsLoading || statsLoading;
 
   return (
     <AppShell
@@ -144,11 +122,11 @@ function Dashboard() {
         <>
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
-            <StatCard label="Total Apps"   value={stats.total} />
-            <StatCard label="Active"       value={stats.active} />
-            <StatCard label="Interviews"   value={stats.interviews} accent="primary" />
-            <StatCard label="Offers"       value={stats.offers}     accent="success" />
-            <StatCard label="Rejections"   value={stats.rejections} />
+            <StatCard label="Total Apps"   value={stats.totalApps} />
+            <StatCard label="Active"       value={stats.activeApps} />
+            <StatCard label="Interviews"   value={stats.interviewsCount} accent="primary" />
+            <StatCard label="Offers"       value={stats.offersCount}     accent="success" />
+            <StatCard label="Rejections"   value={stats.rejectionsCount} />
             <StatCard label="Success Rate" value={`${stats.successRate}%`} accent="success" />
           </div>
 

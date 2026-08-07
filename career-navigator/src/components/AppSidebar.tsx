@@ -2,6 +2,8 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { logout } from "@/lib/api";
+import { useState, useEffect } from "react";
+import { SearchModal } from "@/components/SearchModal";
 import {
   LayoutDashboard,
   Briefcase,
@@ -39,6 +41,19 @@ const nav = [
 export function AppSidebar() {
   const { user, initials, isLoading } = useCurrentUser();
   const navigate = useNavigate();
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Global keyboard shortcut: Ctrl+K or Cmd+K
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   function handleLogout() {
     logout();
@@ -58,12 +73,17 @@ export function AppSidebar() {
       </div>
 
       <div className="px-4 pb-3">
-        <button className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground bg-accent/40 hover:bg-accent transition-colors rounded-md border border-border">
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground bg-accent/40 hover:bg-accent transition-colors rounded-md border border-border"
+        >
           <Search className="size-3.5" />
           <span>Quick search</span>
           <kbd className="ml-auto text-[10px] font-mono opacity-60">⌘K</kbd>
         </button>
       </div>
+
+      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       <nav className="flex-1 px-3 space-y-4 overflow-y-auto">
         {nav.map((group) => (
@@ -97,7 +117,7 @@ export function AppSidebar() {
 
       <div className="p-3 border-t border-border space-y-1">
         <Link
-          to="/"
+          to="/settings"
           className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
         >
           <Settings className="size-4" />

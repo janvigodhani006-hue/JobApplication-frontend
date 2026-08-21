@@ -260,3 +260,31 @@ export async function updateApplicationStatus(
 export async function deleteApplication(id: string): Promise<void> {
   return apiFetch<void>(`/api/applications/${id}`, { method: "DELETE" });
 }
+
+// ─────────────────────────────────────────────────────────────
+// Auth — user account management
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * PUT /api/auth/change-password
+ *
+ * Verifies the current password then updates to the new one.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  return apiFetch<void>("/api/auth/change-password", {
+    method: "PUT",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+/**
+ * DELETE /api/auth/account
+ *
+ * Permanently deletes the authenticated user's account and all data.
+ */
+export async function deleteAccount(): Promise<void> {
+  return apiFetch<void>("/api/auth/account", { method: "DELETE" });
+}

@@ -16,23 +16,35 @@ export function AppShell({ title, subtitle, action, children }: AppShellProps) {
   return (
     <div className="min-h-screen flex bg-background text-foreground">
       <AppSidebar />
-      <main className="flex-1 min-w-0 overflow-x-hidden">
-        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-8 lg:py-10">
-          <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 mb-8 animate-fade-in">
+      {/*
+        On mobile (< lg):
+          - pt-14  = offset for the fixed top bar (56px)
+          - pb-16  = offset for the fixed bottom nav bar (64px)
+        On tablet (md–lg):
+          - pb-0   = no bottom nav on md+
+        On desktop (lg+):
+          - pt-0, pb-0  = no fixed bars, sidebar is static
+      */}
+      <main className="flex-1 min-w-0 overflow-x-hidden pt-14 pb-16 md:pb-0 lg:pt-0">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10">
+          {/* Page header */}
+          <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 mb-6 sm:mb-8 animate-fade-in">
             <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-balance">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold tracking-tight text-balance">
                 {title}
               </h1>
               {subtitle && (
-                <p className="text-muted-foreground text-sm sm:text-[15px] mt-1 text-pretty max-w-[60ch]">
+                <p className="text-muted-foreground text-xs sm:text-sm mt-1 text-pretty max-w-[60ch]">
                   {subtitle}
                 </p>
               )}
             </div>
+            {/* Action area — hidden on mobile to avoid crowding; bell always visible */}
             <div className="flex items-center gap-2 shrink-0">
+              {/* Notification bell — hidden on mobile (visible in top bar) */}
               <Link
                 to="/notifications"
-                className="size-9 grid place-items-center rounded-md border border-border bg-card hover:bg-accent transition-colors relative"
+                className="hidden sm:grid size-9 place-items-center rounded-md border border-border bg-card hover:bg-accent transition-colors relative"
                 aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
               >
                 <Bell className="size-4" />
@@ -44,10 +56,11 @@ export function AppShell({ title, subtitle, action, children }: AppShellProps) {
                 <Link
                   to="/applications"
                   search={{ new: "true" }}
-                  className="bg-primary text-primary-foreground text-sm font-medium px-3.5 py-2 rounded-md inline-flex items-center gap-1.5 hover:brightness-110 transition-all shadow-[var(--shadow-glow)]"
+                  className="bg-primary text-primary-foreground text-xs sm:text-sm font-medium px-2.5 sm:px-3.5 py-2 rounded-md inline-flex items-center gap-1.5 hover:brightness-110 transition-all shadow-[var(--shadow-glow)]"
                 >
-                  <Plus className="size-4" />
-                  New Application
+                  <Plus className="size-3.5 sm:size-4" />
+                  <span className="hidden sm:inline">New Application</span>
+                  <span className="sm:hidden">New</span>
                 </Link>
               )}
             </div>

@@ -264,7 +264,7 @@ function SettingsPage() {
               Danger Zone
             </h2>
           </div>
-          <div className="p-6 flex items-start justify-between gap-6">
+          <div className="p-6 flex flex-col sm:flex-row items-start sm:justify-between gap-4">
             <div>
               <h3 className="font-medium text-sm">Delete Account</h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-md">

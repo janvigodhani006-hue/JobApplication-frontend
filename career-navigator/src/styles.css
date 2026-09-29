@@ -166,6 +166,18 @@
   &::-webkit-scrollbar { display: none; }
 }
 
+/* Safe-area padding for notched/home-indicator devices (iOS Safari) */
+@utility safe-area-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* Ensure touch targets are comfortable on mobile */
+@layer base {
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
